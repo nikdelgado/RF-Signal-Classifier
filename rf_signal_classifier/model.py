@@ -5,17 +5,17 @@ class RFSignalClassifier(nn.Module):
         super(RFSignalClassifier, self).__init__()
         self.model = nn.Sequential(
             nn.Conv1d(2, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(32),  # Batch normalization after first convolution
+            nn.BatchNorm1d(32),  # Batch normalization for stability
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 
             nn.Conv1d(32, 64, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(64),  # Batch normalization after second convolution
+            nn.BatchNorm1d(64),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 
             nn.Conv1d(64, 128, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(128),  # Batch normalization after third convolution
+            nn.BatchNorm1d(128),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 

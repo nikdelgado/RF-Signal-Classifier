@@ -3,16 +3,24 @@ import torch
 from torch.utils.data import Dataset
 
 class RFSignalDataset(Dataset):
-    def __init__(self, signals, labels, augment=False):
+    def __init__(self, signals, labels, augment=False, target_classes=None):
         # Convert complex data to magnitude and phase
         magnitude = np.sqrt(np.real(signals)**2 + np.imag(signals)**2)
         phase = np.arctan2(np.imag(signals), np.real(signals))
         signals = np.stack([magnitude, phase], axis=-1)
 
-        # Apply data augmentation if enabled
-        if augment:
-            signals += np.random.normal(0, 0.01, signals.shape)  # Add Gaussian noise
-            signals = np.roll(signals, shift=10, axis=1)         # Time shift
+        # Apply targeted augmentation
+        if augment and target_classes:
+            for target_class in target_classes:
+                class_indices = np.where(labels == target_class)[0]
+                for idx in class_indices:
+                    # Add Gaussian noise to selected class samples
+                    noise = np.random.normal(0, 0.01, signals[idx].shape)
+                    signals[idx] += noise
+
+                    # Time shift selected class samples
+                    shift = np.random.randint(1, 20)
+                    signals[idx] = np.roll(signals[idx], shift, axis=0)
 
         self.signals = torch.tensor(signals, dtype=torch.float32)
         self.labels = torch.tensor(labels, dtype=torch.long)
@@ -22,7 +30,7 @@ class RFSignalDataset(Dataset):
 
     def __getitem__(self, idx):
         return self.signals[idx], self.labels[idx]
-    
+
 def load_data(processed_dir):
     train_x = np.load(f"{processed_dir}/train_x.npy")
     train_y = np.load(f"{processed_dir}/train_y.npy")

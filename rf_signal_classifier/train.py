@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.optim.lr_scheduler import CyclicLR
+from torch.optim.lr_scheduler import CyclicLR, CosineAnnealingLR
 from dataset import RFSignalDataset, load_data
 from model import RFSignalClassifier
 import torch.nn as nn
@@ -21,7 +21,9 @@ def train_model():
     train_x = train_x.T
     val_x = val_x.T
 
-    train_dataset = RFSignalDataset(train_x, train_y, augment=True)
+    target_classes = [3, 4, 5]  # Class indices for 16QAM, 64QAM, 128QAM
+
+    train_dataset = RFSignalDataset(train_x, train_y, augment=True, target_classes=target_classes)
     val_dataset = RFSignalDataset(val_x, val_y, augment=False)
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4)
@@ -43,7 +45,7 @@ def train_model():
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)  # Use weighted loss
     optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = CyclicLR(optimizer, base_lr=1e-4, max_lr=1e-2, step_size_up=200)
+    scheduler = CosineAnnealingLR(optimizer, T_max=10)  # Cosine annealing scheduler
 
     best_acc = 0.0
     early_stop_patience = 3
@@ -60,8 +62,9 @@ def train_model():
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
-            scheduler.step()  # Adjust learning rate
             epoch_loss += loss.item()
+
+        scheduler.step()  # Adjust learning rate
 
         # Validation
         model.eval()
