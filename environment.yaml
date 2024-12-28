@@ -1,0 +1,17 @@
+name: rf-signal-classifier
+channels:
+  - conda-forge
+  - pytorch
+dependencies:
+  - python=3.10
+  - numpy
+  - scipy
+  - matplotlib
+  - pytorch
+  - torchvision
+  - torchaudio
+  - scikit-learn
+  - mat73
+  - pymatreader
+  - jupyter
+  - torch-lr-finder

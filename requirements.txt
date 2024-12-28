@@ -1,0 +1,9 @@
+numpy
+scipy
+matplotlib
+torch
+torchvision
+torchaudio
+scikit-learn
+mat73
+pymatreader
