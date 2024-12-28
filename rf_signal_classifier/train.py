@@ -1,11 +1,12 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import CyclicLR
 from dataset import RFSignalDataset, load_data
 from model import RFSignalClassifier
 import torch.nn as nn
 import numpy as np
+from sklearn.metrics import confusion_matrix, classification_report
 
 def train_model():
     processed_dir = "data/processed"
@@ -19,18 +20,21 @@ def train_model():
     train_x = train_x.T
     val_x = val_x.T
 
-    train_dataset = RFSignalDataset(train_x, train_y)
-    val_dataset = RFSignalDataset(val_x, val_y)
+    train_dataset = RFSignalDataset(train_x, train_y, augment=True)
+    val_dataset = RFSignalDataset(val_x, val_y, augment=False)
 
     train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4)
     val_loader = DataLoader(val_dataset, batch_size=16, num_workers=4)
 
     # Set device to MPS for M1 Mac
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
+    print(f"Using device: {device}") 
+    print(f"MPS Available: {torch.backends.mps.is_available()}")
+    
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
-    criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=5, gamma=0.5)
+    criterion = LabelSmoothingLoss(num_classes=len(modtypes), smoothing=0.1)
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = CyclicLR(optimizer, base_lr=1e-4, max_lr=1e-2, step_size_up=200)
 
     best_acc = 0.0
     early_stop_patience = 3
@@ -47,14 +51,15 @@ def train_model():
             loss = criterion(outputs, labels)
             loss.backward()
             optimizer.step()
+            scheduler.step()  # Adjust learning rate
             epoch_loss += loss.item()
-
-        scheduler.step()
 
         # Validation
         model.eval()
         correct = 0
         total = 0
+        all_preds = []
+        all_labels = []
         with torch.no_grad():
             for signals, labels in val_loader:
                 signals = signals.permute(0, 2, 1).to(device)
@@ -63,6 +68,8 @@ def train_model():
                 _, predicted = torch.max(outputs, 1)
                 correct += (predicted == labels).sum().item()
                 total += labels.size(0)
+                all_preds.extend(predicted.cpu().numpy())
+                all_labels.extend(labels.cpu().numpy())
         val_acc = 100 * correct / total
 
         # Save best model
@@ -84,6 +91,24 @@ def train_model():
         print(f"    Validation Accuracy: {val_acc:.2f}%")
 
     print("Training complete. Best Validation Accuracy: {:.2f}%".format(best_acc))
+
+    # Confusion matrix and classification report
+    print("\nConfusion Matrix:")
+    print(confusion_matrix(all_labels, all_preds))
+    print("\nClassification Report:")
+    print(classification_report(all_labels, all_preds, target_names=modtypes))
+
+class LabelSmoothingLoss(nn.Module):
+    def __init__(self, num_classes, smoothing=0.1):
+        super(LabelSmoothingLoss, self).__init__()
+        self.smoothing = smoothing
+        self.num_classes = num_classes
+
+    def forward(self, pred, target):
+        confidence = 1.0 - self.smoothing
+        smooth_labels = torch.full_like(pred, self.smoothing / self.num_classes)
+        smooth_labels.scatter_(1, target.unsqueeze(1), confidence)
+        return torch.mean(torch.sum(-smooth_labels * torch.log_softmax(pred, dim=1), dim=1))
 
 if __name__ == "__main__":
     train_model()

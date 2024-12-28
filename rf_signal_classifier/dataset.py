@@ -3,11 +3,17 @@ import torch
 from torch.utils.data import Dataset
 
 class RFSignalDataset(Dataset):
-    def __init__(self, signals, labels):
+    def __init__(self, signals, labels, augment=False):
         # Convert complex data to magnitude and phase
         magnitude = np.sqrt(np.real(signals)**2 + np.imag(signals)**2)
         phase = np.arctan2(np.imag(signals), np.real(signals))
-        signals = np.stack([magnitude, phase], axis=-1)  # Shape: (samples, time, 2)
+        signals = np.stack([magnitude, phase], axis=-1)
+
+        # Apply data augmentation if enabled
+        if augment:
+            signals += np.random.normal(0, 0.01, signals.shape)  # Add Gaussian noise
+            signals = np.roll(signals, shift=10, axis=1)         # Time shift
+
         self.signals = torch.tensor(signals, dtype=torch.float32)
         self.labels = torch.tensor(labels, dtype=torch.long)
 
