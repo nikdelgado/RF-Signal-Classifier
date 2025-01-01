@@ -9,6 +9,18 @@ import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 from collections import Counter
 
+class LabelSmoothingLoss(nn.Module):
+    def __init__(self, num_classes, smoothing=0.1):
+        super(LabelSmoothingLoss, self).__init__()
+        self.smoothing = smoothing
+        self.num_classes = num_classes
+
+    def forward(self, pred, target):
+        confidence = 1.0 - self.smoothing
+        smooth_labels = torch.full_like(pred, self.smoothing / self.num_classes)
+        smooth_labels.scatter_(1, target.unsqueeze(1), confidence)
+        return torch.mean(torch.sum(-smooth_labels * torch.log_softmax(pred, dim=1), dim=1))
+
 def train_model():
     processed_dir = "data/processed"
     train_x, train_y, val_x, val_y, modtypes = load_data(processed_dir)
@@ -34,16 +46,9 @@ def train_model():
     print(f"Using device: {device}") 
     print(f"MPS Available: {torch.backends.mps.is_available()}")
 
-    # Calculate class weights
-    class_counts = Counter(train_y)
-    total_samples = sum(class_counts.values())
-    class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
-    weight_list = [class_weights[i] for i in range(len(modtypes))]
-    class_weights_tensor = torch.tensor(weight_list, dtype=torch.float32).to(device)
-
     # Update model, loss, optimizer, and scheduler
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
-    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)  # Use weighted loss
+    criterion = LabelSmoothingLoss(num_classes=len(modtypes), smoothing=0.1)  # Use label smoothing
     optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=10)  # Cosine annealing scheduler
 
