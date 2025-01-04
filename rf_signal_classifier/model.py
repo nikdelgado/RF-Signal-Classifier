@@ -5,7 +5,7 @@ class RFSignalClassifier(nn.Module):
         super(RFSignalClassifier, self).__init__()
         self.model = nn.Sequential(
             nn.Conv1d(2, 32, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(32),  # Batch normalization for stability
+            nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 
@@ -19,8 +19,20 @@ class RFSignalClassifier(nn.Module):
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 
+            nn.Conv1d(128, 256, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(256),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+
+            nn.Conv1d(256, 512, kernel_size=3, stride=1, padding=1),
+            nn.BatchNorm1d(512),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+
             nn.Flatten(),
-            nn.Linear(128 * (input_size // 8), 256),
+            nn.Linear(512 * (input_size // 32), 512),
+            nn.ReLU(),
+            nn.Linear(512, 256),
             nn.ReLU(),
             nn.Linear(256, num_classes)
         )

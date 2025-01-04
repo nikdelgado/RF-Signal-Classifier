@@ -1,20 +1,13 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.optim.lr_scheduler import LambdaLR
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from dataset import RFSignalDataset, load_data
 from model import RFSignalClassifier
 import torch.nn as nn
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 from collections import Counter
-import math
-
-def combined_scheduler(epoch):
-    if epoch < 5:  # Extended warm-up phase
-        return 0.2 + 0.16 * epoch  # Gradual increase
-    # Cosine annealing after warm-up
-    return 0.5 * (1 + math.cos((epoch - 5) / (20 - 5) * math.pi))
 
 def train_model():
     processed_dir = "data/processed"
@@ -33,8 +26,8 @@ def train_model():
     train_dataset = RFSignalDataset(train_x, train_y, augment=True, target_classes=target_classes)
     val_dataset = RFSignalDataset(val_x, val_y, augment=False)
 
-    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)  # Increased batch size
-    val_loader = DataLoader(val_dataset, batch_size=32, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)  # Increased batch size
+    val_loader = DataLoader(val_dataset, batch_size=64, num_workers=4)
 
     # Set device to MPS for M1 Mac
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -43,17 +36,15 @@ def train_model():
 
     # Update model, loss, optimizer, and scheduler
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
-    criterion = nn.CrossEntropyLoss()  # Using standard CrossEntropyLoss for simplicity
-    optimizer = Adam(model.parameters(), lr=0.002, weight_decay=1e-4)  # Slightly increased learning rate
-
-    # Combined scheduler with warm-up and cosine annealing
-    scheduler = LambdaLR(optimizer, lr_lambda=combined_scheduler)
+    criterion = nn.CrossEntropyLoss()  # Standard CrossEntropyLoss
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=5e-5)  # Reduced weight decay
+    scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, verbose=True)  # Reduce LR on plateau
 
     best_acc = 0.0
-    early_stop_patience = 3
+    early_stop_patience = 5
     no_improve_epochs = 0
 
-    for epoch in range(20):  # Increased max epochs
+    for epoch in range(20):  # Keep 20 epochs for consistency
         model.train()
         epoch_loss = 0.0
         for signals, labels in train_loader:
@@ -63,14 +54,8 @@ def train_model():
             outputs = model(signals)
             loss = criterion(outputs, labels)
             loss.backward()
-            
-            # Apply gradient clipping
-            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-            
             optimizer.step()
             epoch_loss += loss.item()
-
-        scheduler.step()  # Adjust learning rate
 
         # Validation
         model.eval()
@@ -89,6 +74,9 @@ def train_model():
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         val_acc = 100 * correct / total
+
+        # Adjust learning rate based on validation accuracy
+        scheduler.step(val_acc)
 
         # Save best model
         if val_acc > best_acc:
