@@ -1,24 +1,36 @@
 import numpy as np
 import torch
 from torch.utils.data import Dataset
+import random
 
 class RFSignalDataset(Dataset):
-    def __init__(self, signals, labels, augment=False, target_classes=None):
+    def __init__(self, signals, labels, augment=False, target_classes=None, balance_classes=False):
         # Convert complex data to magnitude and phase
         magnitude = np.sqrt(np.real(signals)**2 + np.imag(signals)**2)
         phase = np.arctan2(np.imag(signals), np.real(signals))
         signals = np.stack([magnitude, phase], axis=-1)
 
-        # Apply targeted augmentation
-        if augment and target_classes:
+        if balance_classes:
+            # Oversample underrepresented classes
+            unique_classes, class_counts = np.unique(labels, return_counts=True)
+            max_count = max(class_counts)
+            balanced_signals = []
+            balanced_labels = []
+            for cls in unique_classes:
+                cls_indices = np.where(labels == cls)[0]
+                oversampled_indices = np.random.choice(cls_indices, size=max_count, replace=True)
+                balanced_signals.append(signals[oversampled_indices])
+                balanced_labels.append(labels[oversampled_indices])
+            signals = np.vstack(balanced_signals)
+            labels = np.hstack(balanced_labels)
+
+        if augment:
+            # Apply augmentation for target classes
             for target_class in target_classes:
                 class_indices = np.where(labels == target_class)[0]
                 for idx in class_indices:
-                    # Add Gaussian noise to selected class samples
                     noise = np.random.normal(0, 0.01, signals[idx].shape)
                     signals[idx] += noise
-
-                    # Time shift selected class samples
                     shift = np.random.randint(1, 20)
                     signals[idx] = np.roll(signals[idx], shift, axis=0)
 

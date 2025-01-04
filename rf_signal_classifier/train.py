@@ -1,25 +1,20 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.optim.lr_scheduler import CyclicLR, CosineAnnealingLR
+from torch.optim.lr_scheduler import LambdaLR
 from dataset import RFSignalDataset, load_data
 from model import RFSignalClassifier
 import torch.nn as nn
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report
 from collections import Counter
+import math
 
-class LabelSmoothingLoss(nn.Module):
-    def __init__(self, num_classes, smoothing=0.1):
-        super(LabelSmoothingLoss, self).__init__()
-        self.smoothing = smoothing
-        self.num_classes = num_classes
-
-    def forward(self, pred, target):
-        confidence = 1.0 - self.smoothing
-        smooth_labels = torch.full_like(pred, self.smoothing / self.num_classes)
-        smooth_labels.scatter_(1, target.unsqueeze(1), confidence)
-        return torch.mean(torch.sum(-smooth_labels * torch.log_softmax(pred, dim=1), dim=1))
+def combined_scheduler(epoch):
+    if epoch < 3:  # Warm-up phase
+        return 0.33 * (epoch + 1)  # Gradually increase the learning rate
+    # Cosine annealing after warm-up
+    return 0.5 * (1 + math.cos((epoch - 3) / (10 - 3) * math.pi))
 
 def train_model():
     processed_dir = "data/processed"
@@ -38,8 +33,8 @@ def train_model():
     train_dataset = RFSignalDataset(train_x, train_y, augment=True, target_classes=target_classes)
     val_dataset = RFSignalDataset(val_x, val_y, augment=False)
 
-    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4)
-    val_loader = DataLoader(val_dataset, batch_size=16, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True, num_workers=4)  # Increased batch size
+    val_loader = DataLoader(val_dataset, batch_size=32, num_workers=4)
 
     # Set device to MPS for M1 Mac
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
@@ -48,9 +43,11 @@ def train_model():
 
     # Update model, loss, optimizer, and scheduler
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
-    criterion = LabelSmoothingLoss(num_classes=len(modtypes), smoothing=0.1)  # Use label smoothing
+    criterion = nn.CrossEntropyLoss()  # Using standard CrossEntropyLoss for simplicity
     optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
-    scheduler = CosineAnnealingLR(optimizer, T_max=10)  # Cosine annealing scheduler
+
+    # Combined scheduler with warm-up and cosine annealing
+    scheduler = LambdaLR(optimizer, lr_lambda=combined_scheduler)
 
     best_acc = 0.0
     early_stop_patience = 3
@@ -103,7 +100,7 @@ def train_model():
             print(f"Early stopping triggered at epoch {epoch + 1}")
             break
 
-        print(f"Epoch {epoch + 1}/{10}")
+        print(f"Epoch {epoch + 1}/10")
         print(f"    Loss: {epoch_loss / len(train_loader):.4f}")
         print(f"    Validation Accuracy: {val_acc:.2f}%")
 
