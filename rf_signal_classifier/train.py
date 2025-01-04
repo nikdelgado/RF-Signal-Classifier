@@ -1,7 +1,7 @@
 import torch
 from torch.utils.data import DataLoader
 from torch.optim import Adam
-from torch.optim.lr_scheduler import ReduceLROnPlateau
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from dataset import RFSignalDataset, load_data
 from model import RFSignalClassifier
 import torch.nn as nn
@@ -26,25 +26,32 @@ def train_model():
     train_dataset = RFSignalDataset(train_x, train_y, augment=True, target_classes=target_classes)
     val_dataset = RFSignalDataset(val_x, val_y, augment=False)
 
-    train_loader = DataLoader(train_dataset, batch_size=64, shuffle=True, num_workers=4)  # Increased batch size
-    val_loader = DataLoader(val_dataset, batch_size=64, num_workers=4)
+    train_loader = DataLoader(train_dataset, batch_size=16, shuffle=True, num_workers=4)
+    val_loader = DataLoader(val_dataset, batch_size=16, num_workers=4)
 
     # Set device to MPS for M1 Mac
     device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     print(f"Using device: {device}") 
     print(f"MPS Available: {torch.backends.mps.is_available()}")
 
+    # Calculate class weights
+    class_counts = Counter(train_y)
+    total_samples = sum(class_counts.values())
+    class_weights = {cls: total_samples / count for cls, count in class_counts.items()}
+    weight_list = [class_weights[i] for i in range(len(modtypes))]
+    class_weights_tensor = torch.tensor(weight_list, dtype=torch.float32).to(device)
+
     # Update model, loss, optimizer, and scheduler
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
-    criterion = nn.CrossEntropyLoss()  # Standard CrossEntropyLoss
-    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=5e-5)  # Reduced weight decay
-    scheduler = ReduceLROnPlateau(optimizer, mode='max', factor=0.5, patience=3, verbose=True)  # Reduce LR on plateau
+    criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)  # Use weighted loss
+    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    scheduler = CosineAnnealingLR(optimizer, T_max=10)  # Cosine annealing scheduler
 
     best_acc = 0.0
-    early_stop_patience = 5
+    early_stop_patience = 3
     no_improve_epochs = 0
 
-    for epoch in range(20):  # Keep 20 epochs for consistency
+    for epoch in range(20):
         model.train()
         epoch_loss = 0.0
         for signals, labels in train_loader:
@@ -56,6 +63,8 @@ def train_model():
             loss.backward()
             optimizer.step()
             epoch_loss += loss.item()
+
+        scheduler.step()  # Adjust learning rate
 
         # Validation
         model.eval()
@@ -74,9 +83,6 @@ def train_model():
                 all_preds.extend(predicted.cpu().numpy())
                 all_labels.extend(labels.cpu().numpy())
         val_acc = 100 * correct / total
-
-        # Adjust learning rate based on validation accuracy
-        scheduler.step(val_acc)
 
         # Save best model
         if val_acc > best_acc:
