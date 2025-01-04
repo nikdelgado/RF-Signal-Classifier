@@ -11,10 +11,10 @@ from collections import Counter
 import math
 
 def combined_scheduler(epoch):
-    if epoch < 3:  # Warm-up phase
-        return 0.33 * (epoch + 1)  # Gradually increase the learning rate
+    if epoch < 5:  # Extended warm-up phase
+        return 0.2 + 0.16 * epoch  # Gradual increase
     # Cosine annealing after warm-up
-    return 0.5 * (1 + math.cos((epoch - 3) / (10 - 3) * math.pi))
+    return 0.5 * (1 + math.cos((epoch - 5) / (20 - 5) * math.pi))
 
 def train_model():
     processed_dir = "data/processed"
@@ -44,7 +44,7 @@ def train_model():
     # Update model, loss, optimizer, and scheduler
     model = RFSignalClassifier(input_size=train_x.shape[1], num_classes=len(modtypes)).to(device)
     criterion = nn.CrossEntropyLoss()  # Using standard CrossEntropyLoss for simplicity
-    optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
+    optimizer = Adam(model.parameters(), lr=0.002, weight_decay=1e-4)  # Slightly increased learning rate
 
     # Combined scheduler with warm-up and cosine annealing
     scheduler = LambdaLR(optimizer, lr_lambda=combined_scheduler)
@@ -53,7 +53,7 @@ def train_model():
     early_stop_patience = 3
     no_improve_epochs = 0
 
-    for epoch in range(10):
+    for epoch in range(20):  # Increased max epochs
         model.train()
         epoch_loss = 0.0
         for signals, labels in train_loader:
@@ -63,6 +63,10 @@ def train_model():
             outputs = model(signals)
             loss = criterion(outputs, labels)
             loss.backward()
+            
+            # Apply gradient clipping
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            
             optimizer.step()
             epoch_loss += loss.item()
 
@@ -100,7 +104,7 @@ def train_model():
             print(f"Early stopping triggered at epoch {epoch + 1}")
             break
 
-        print(f"Epoch {epoch + 1}/10")
+        print(f"Epoch {epoch + 1}/20")
         print(f"    Loss: {epoch_loss / len(train_loader):.4f}")
         print(f"    Validation Accuracy: {val_acc:.2f}%")
 
