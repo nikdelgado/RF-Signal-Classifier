@@ -79,19 +79,6 @@ Score = (accuracy / 100) + (10 / log10(Nparams)) + β - ε
 
 THe model achieved a validation accuracy of 78.27% with a drastically reduced parameter count of 68,923 parameters, making the model lightweight and efficeint while maintaining strong performance across most modulation types. 
 
-### Confusion Matrix
-[[2702   10    3    1    1    0   48    0    0    0    0]
-[  41 2424  243    8    1    2   39    0    2    5    0]
-[  33  337 2310   24    2    5   29    0    0    3    0]
-[  25   63  150 1932  140  417   30    0    0    0    1]
-[  16   57   84 1042  341 1148   27    0    0    0    0]
-[  15   46   81  927  227 1328   32    0    0    1    2]
-[  56    7    0    1    3    2 2593    0    0    0    0]
-[   0    2    7    0    0    0    2 1850  607   13  167]
-[   0    4    3    0    0    0    0   39 2527   84    4]
-[   1    6    1    2    1    0    0    0  113 2532    7]
-[   0    2    0    0    0    0    2   81    0    0 2576]]
-
  ### Classification Report
 
               precision    recall  f1-score   support
