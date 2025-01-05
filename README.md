@@ -72,3 +72,45 @@ python run_inference.py --test_data_path <path-to-test-data>
 
 ### Evaluation
 Score = (accuracy / 100) + (10 / log10(Nparams)) + β - ε
+
+## Results
+
+### Model Performance
+
+THe model achieved a validation accuracy of 78.27% with a drastically reduced parameter count of 68,923 parameters, making the model lightweight and efficeint while maintaining strong performance across most modulation types. 
+
+### Confusion Matrix
+[[2702   10    3    1    1    0   48    0    0    0    0]
+ [  41 2424  243    8    1    2   39    0    2    5    0]
+ [  33  337 2310   24    2    5   29    0    0    3    0]
+ [  25   63  150 1932  140  417   30    0    0    0    1]
+ [  16   57   84 1042  341 1148   27    0    0    0    0]
+ [  15   46   81  927  227 1328   32    0    0    1    2]
+ [  56    7    0    1    3    2 2593    0    0    0    0]
+ [   0    2    7    0    0    0    2 1850  607   13  167]
+ [   0    4    3    0    0    0    0   39 2527   84    4]
+ [   1    6    1    2    1    0    0    0  113 2532    7]
+ [   0    2    0    0    0    0    2   81    0    0 2576]]
+
+ ### Classification Report
+
+              precision    recall  f1-score   support
+
+        BPSK       0.97      0.96      0.97      2765
+        QPSK       0.83      0.87      0.85      2765
+        8PSK       0.82      0.85      0.84      2743
+       16QAM       0.49      0.72      0.58      2758
+       64QAM       0.44      0.18      0.26      2715
+      128QAM       0.46      0.46      0.46      2659
+        PAM4       0.93      0.98      0.95      2662
+         FSK       0.93      0.70      0.80      2648
+         MSK       0.79      0.94      0.86      2661
+        GMSK       0.95      0.97      0.96      2663
+        GFSK       0.94      0.96      0.95      2661
+
+    accuracy                           0.78     29700
+   macro avg       0.78      0.78      0.77     29700
+weighted avg       0.78      0.78      0.77     29700
+
+### Future Improvements
+1. Enhance data augmentation: Apply more targeted automation for underperforming classes likes 64QAM ans 128QAM

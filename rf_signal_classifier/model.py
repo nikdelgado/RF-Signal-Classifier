@@ -4,7 +4,12 @@ class RFSignalClassifier(nn.Module):
     def __init__(self, input_size, num_classes):
         super(RFSignalClassifier, self).__init__()
         self.model = nn.Sequential(
-            nn.Conv1d(2, 32, kernel_size=3, stride=1, padding=1),
+            nn.Conv1d(2, 16, kernel_size=3, stride=1, padding=1),  # Reduced filters
+            nn.BatchNorm1d(16),
+            nn.ReLU(),
+            nn.MaxPool1d(kernel_size=2),
+
+            nn.Conv1d(16, 32, kernel_size=3, stride=1, padding=1),
             nn.BatchNorm1d(32),
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
@@ -19,20 +24,9 @@ class RFSignalClassifier(nn.Module):
             nn.ReLU(),
             nn.MaxPool1d(kernel_size=2),
 
-            nn.Conv1d(128, 256, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(256),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2),
-
-            nn.Conv1d(256, 512, kernel_size=3, stride=1, padding=1),
-            nn.BatchNorm1d(512),
-            nn.ReLU(),
-            nn.MaxPool1d(kernel_size=2),
-
+            nn.AdaptiveAvgPool1d(1),  # Global average pooling
             nn.Flatten(),
-            nn.Linear(512 * (input_size // 32), 512),
-            nn.ReLU(),
-            nn.Linear(512, 256),
+            nn.Linear(128, 256),  # Reduced fully connected layer size
             nn.ReLU(),
             nn.Linear(256, num_classes)
         )

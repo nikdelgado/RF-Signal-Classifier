@@ -46,6 +46,9 @@ def train_model():
     criterion = nn.CrossEntropyLoss(weight=class_weights_tensor)  # Use weighted loss
     optimizer = Adam(model.parameters(), lr=0.001, weight_decay=1e-4)
     scheduler = CosineAnnealingLR(optimizer, T_max=10)  # Cosine annealing scheduler
+    
+    total_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    print(f"Total Trainable Parameters: {total_params}")
 
     best_acc = 0.0
     early_stop_patience = 3
